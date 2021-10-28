@@ -1,0 +1,25 @@
+[package]
+version = "0.1.0"
+name = "frontend"
+repository = "https://github.com/MoonZoon/MoonZoon"
+authors = ["Martin Kavík <martin@kavik.cz>"]
+description = "MoonZoon demo"
+categories = ["MoonZoon", "example"]
+license = "MIT"
+readme = "../README.md"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+zoon = { git = "https://github.com/MoonZoon/MoonZoon" }
+shared = { path = "../shared", features = ["frontend"] }
+field-derive = { path = "field-derive" }
+strum = "0.22"
+strum_macros = "0.22"
+json-patch = "0.2.6"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ['-Oz']
+

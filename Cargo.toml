@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "frontend",
+    "backend",
+    "shared",
+]
+
+[profile.release]
+lto = true
+
+[profile.release.package.frontend]
+opt-level = 'z'
+
+[profile.release.package.backend]
+opt-level = 3

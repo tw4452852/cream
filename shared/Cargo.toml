@@ -1,0 +1,17 @@
+[package]
+version = "0.1.0"
+name = "shared"
+repository = "https://github.com/MoonZoon/MoonZoon"
+authors = ["Martin Kavík <martin@kavik.cz>"]
+description = "MoonZoon demo"
+categories = ["MoonZoon", "example"]
+license = "MIT"
+readme = "../README.md"
+edition = "2021"
+
+[dependencies]
+moonlight = { git = "https://github.com/MoonZoon/MoonZoon" }
+
+[features]
+frontend = ["moonlight/frontend"]
+backend = ["moonlight/backend"]
