@@ -1,0 +1,22 @@
+[package]
+name = "field-derive"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+
+[dependencies]
+proc-macro2 = "1.0.30"
+quote = "1.0.10"
+syn = { version = "1.0.80", features = ["full",  "extra-traits"] }
+
+[dev-dependencies]
+trybuild = "1.0.50"
+zoon = { git = "https://github.com/MoonZoon/MoonZoon" }
+strum = "0.22"
+strum_macros = "0.22"
+
