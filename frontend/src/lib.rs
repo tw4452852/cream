@@ -3,6 +3,7 @@
 use zoon::*;
 
 mod app;
+mod as_element;
 mod connection;
 mod home_page;
 mod login_page;

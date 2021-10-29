@@ -8,15 +8,17 @@ edition = "2018"
 [lib]
 proc-macro = true
 
+[features]
+frontend = []
 
 [dependencies]
 proc-macro2 = "1.0.30"
 quote = "1.0.10"
 syn = { version = "1.0.80", features = ["full",  "extra-traits"] }
+zoon = { git = "https://github.com/MoonZoon/MoonZoon" }
 
 [dev-dependencies]
 trybuild = "1.0.50"
-zoon = { git = "https://github.com/MoonZoon/MoonZoon" }
 strum = "0.22"
 strum_macros = "0.22"
 

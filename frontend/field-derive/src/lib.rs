@@ -1,4 +1,5 @@
 #![recursion_limit = "256"]
+
 use proc_macro::{self, TokenStream};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{
@@ -17,47 +18,44 @@ fn extract_type_levels(ty: &syn::Type) -> Vec<String> {
         .collect()
 }
 
-
-fn struct_field_derive(s: DataStruct) -> proc_macro2::TokenStream {
+fn struct_field_derive(s_ident: syn::Ident, s: DataStruct) -> proc_macro2::TokenStream {
     let mut fields_output = quote! {};
     let mut primitive_fields = Vec::new();
     let mut other_fields = Vec::new();
     let mut enum_fields = Vec::new();
     let mut enum_fields_types = Vec::new();
 
-	let button_style = quote! {
-		.s(Borders::all(Border::new()))
-		.s(RoundedCorners::all(7))
-		.s(Align::new().left())
-		.s(Padding::all(2))
-		.on_hovered_change(move |is_hovered| hovered.set_neq(is_hovered))
-		.s(Background::new().color_signal(hovered_signal.map_bool(
-			|| named_color::GREEN_5,
-			|| named_color::GRAY_0,
-		)))
-	};
+    let button_style = quote! {
+        .s(Borders::all(Border::new()))
+        .s(RoundedCorners::all(7))
+        .s(Align::new().left())
+        .s(Padding::all(2))
+        .on_hovered_change(move |is_hovered| hovered.set_neq(is_hovered))
+        .s(Background::new().color_signal(hovered_signal.map_bool(
+            || named_color::GREEN_5,
+            || named_color::GRAY_0,
+        )))
+    };
     let button = quote! {
-    	let (hovered, hovered_signal) = Mutable::new_and_signal(false);
-		Button::new()#button_style
-	};
-	let checkbox = quote! {
-		let (hovered, hovered_signal) = Mutable::new_and_signal(false);
-		Checkbox::new()#button_style
-	};
-	let current_level = quote! {
-		{ module_path!().matches("::").count() as u32 }
-	};
-	let textinput = quote! {
-		let (hovered, hovered_signal) = Mutable::new_and_signal(false);
-		TextInput::new()
-		.on_hovered_change(move |is_hovered| hovered.set_neq(is_hovered))
-		.s(Borders::new().bottom_signal(hovered_signal.map_bool(|| Border::new(), || Border::new().color(hsluv!(0, 0, 0, 0)))))
-		.s(Scrollbars::both())
-	};
+        let (hovered, hovered_signal) = Mutable::new_and_signal(false);
+        Button::new()#button_style
+    };
+
+    let current_level = quote! {
+        { module_path!().matches("::").count() as u32 }
+    };
+    let textinput = quote! {
+        let (hovered, hovered_signal) = Mutable::new_and_signal(false);
+        TextInput::new()
+        .on_hovered_change(move |is_hovered| hovered.set_neq(is_hovered))
+        .s(Borders::new().bottom_signal(hovered_signal.map_bool(|| Border::new(), || Border::new().color(hsluv!(0, 0, 0, 0)))))
+        .s(Scrollbars::both())
+    };
 
     if let syn::Fields::Named(syn::FieldsNamed { named, .. }) = s.fields {
         for f in named {
             let ident = format_ident!("{}", f.ident.as_ref().unwrap());
+            let ident_s = ident.to_string();
             let ident_raw = format_ident!("r#{}", ident);
             let ident_mut = format_ident!("{}_mut", ident);
             let ident_page = format_ident!("{}_page", ident);
@@ -110,124 +108,29 @@ fn struct_field_derive(s: DataStruct) -> proc_macro2::TokenStream {
                 });
 
                 match (outer.as_str(), inner.as_str()) {
-                    ("Option", x @ ("u32" | "String")) => fields_output.extend({
-                    // Mutable<Option<[u32|String]>>
-                    let input_type = format_ident!("{}", if x == "String" { "text" } else { "number" });
+                    ("Option" | "Vec", "u32" | "String" | "bool") => fields_output.extend({
                     quote_spanned! {ty.span()=>
                         fn #ident_page(&self, id: String) -> impl Element {
-                        	let ident_mut = self.#ident_mut();
-                        	El::new().child_signal(
-                             self.#ident_mut().signal_cloned().map_some({
-                             let id = id.clone();
-                             move |init_val| {
-                                 let val_mut: Mutable<Option<String>> = Mutable::new(None);
-                                 Row::new()
-                                     .item(Label::new().for_input(stringify!(#ident)).label(format!("{}: ", stringify!(#ident))))
-                                     .item({#textinput.id(stringify!(#ident)).text(init_val.clone())
-                                     	.placeholder(Placeholder::new(format!("<{}>", stringify!(#ident))))
-                                     	.on_change({
-                                         let init_s = init_val.to_string();
-                                         let val_mut = val_mut.clone();
-                                         move |s| {
-                                         	if s.is_empty() {
-                                         		val_mut.set(None);
-                                         	} else if  s != init_s {
-                                         		val_mut.set(Some(s));
-                                         	}
-                                         }
-                                     }).input_type(InputType::#input_type())})
-                                     .item_signal(val_mut.signal_cloned().map_some({
-                                     	let ident_mut = ident_mut.clone();
-                                     	let id = id.clone();
-                                    	move |s| {
-                                    		#button.label("ok").on_press({
-                                    		let ident_mut = ident_mut.clone();
-                                    		let id = id.clone();
-                                     		move || {
-                                     			let v = s.parse().unwrap();
-                                     			#[cfg(not(trybuild))]
-                                     			{
-													crate::sync_config!(set, format!("{}/{}", id, stringify!(#ident)), serde_json::to_string(&v).unwrap(), { ident_mut.set(Some(v)); });
-												}
-												#[cfg(trybuild)]
-												{ ident_mut.set(Some(v)); let _ = id; }
-                                     		}})
-                                     	}
-                                     }))
-                                     .item({#button.label("x").on_press({
-                                     	let ident_mut = ident_mut.clone();
-                                     	let id = id.clone();
-                                     	move || {
-                                     		#[cfg(not(trybuild))]
-                                     		crate::sync_config!(del, format!("{}/{}", id, stringify!(#ident)), { ident_mut.set(None); });
-                                     		#[cfg(trybuild)]
-											{ ident_mut.set(None); let _ = id; }
-                                     	}
-                                     })})
-                             }}))
+                        	self.#ident_raw.as_root_element(id + "/" + #ident_s)
                         }
                     }}),
-                    ("Option", "bool") => fields_output.extend({
-                    	// Mutable<Option<bool>>
-                    	quote_spanned! {ty.span()=>
-                    		fn #ident_page(&self, id: String) -> impl Element {
-                        		let ident_mut = self.#ident_mut();
-                        		El::new().child_signal(
-                             		self.#ident_mut().signal_cloned().map_some({
-                             			let id = id.clone();
-                             			let ident_mut = ident_mut.clone();
-                             			move |selected| {
-                             				Row::new()
-                             				.item(Label::new().for_input(stringify!(#ident)).label(format!("{}: ", stringify!(#ident))))
-                             				.item({#checkbox.id(stringify!(#ident)).checked(selected).icon(|selected| Text::with_signal(selected.signal().map_bool(|| "true", || "false"))).on_change({
-											let id = id.clone();
-											let ident_mut = ident_mut.clone();
-                             				move |selected| {
-                             					#[cfg(not(trybuild))]
-                             					crate::sync_config!(set, format!("{}/{}", id, stringify!(#ident)), serde_json::to_string(&selected).unwrap(), { ident_mut.set(Some(selected)); });
-                             					#[cfg(trybuild)]
-                             					{ ident_mut.set(Some(selected)); let _ = id; }
-                             				}
-                             				})})
-                             				.item({#button.label("x").on_press({
-                                     			let ident_mut = ident_mut.clone();
-                                     			let id = id.clone();
-                                     			move || {
-                                     				#[cfg(not(trybuild))]
-                                     				crate::sync_config!(del, format!("{}/{}", id, stringify!(#ident)), { ident_mut.set(None); });
-                                     				#[cfg(trybuild)]
-													{ ident_mut.set(None); let _ = id; }
-                                     			}
-                                     		})})
-                             			}
-                             		})
-                             )
-                         }
+                    ("Option" , x) if x.ends_with("Val") || x.ends_with("Enum") => fields_output.extend({
+                    quote_spanned! {ty.span()=>
+                        fn #ident_page(&self, id: String) -> impl Element {
+                        	self.#ident_raw.as_root_element(id + "/" + #ident_s)
+                        }
                     }}),
-
-                    (outer @ ("Option"|"BTreeMap"|"Vec"), inner) => fields_output.extend({
+                    ("Vec" , x) if x.ends_with("Val") => fields_output.extend({
+                    quote_spanned! {ty.span()=>
+                        fn #ident_page(&self, id: String) -> impl Element {
+                        	self.#ident_raw.as_root_element(id + "/" + #ident_s)
+                        }
+                    }}),
+                    (outer @ ("BTreeMap"|"Vec"), inner) => fields_output.extend({
                     let inner_field_name = ident.to_string();
                     let inner_field_name = inner_field_name.trim_end_matches('s');
                     let inner_type = parse_str::<Type>(inner).unwrap();
                     let child = match outer {
-                    	"Option" if inner.ends_with("Val") => quote_spanned! {ty.span()=>{
-                    		// child of Mutable<Option<struct>>
-                    		let id = id.clone();
-                    		move |m| {
-                    			let id = format!("{}/{}", id.clone(), stringify!(#ident));
-                    			m.root(id)
-                    		}
-                    	}},
-                    	"Option" if inner.ends_with("Enum") => quote_spanned! {ty.span()=>{
-                    		// child of Mutable<Option<Enum>>
-                    		let id = id.clone();
-                    		move |m| {
-                    			let id = format!("{}/{}", id.clone(), stringify!(#ident));
-                    			Column::new()
-                    			.item(Text::new(m.as_ref()))
-                    			.item(m.root(id))
-                    		}
-                    	}},
                     	"BTreeMap" => {
                     		let child = if inner.ends_with("MSVec") {
                     			// child of Mutable<Option<BTreeMap<string, Mutable<Vec<String>>>>>
@@ -928,7 +831,7 @@ fn struct_field_derive(s: DataStruct) -> proc_macro2::TokenStream {
             .chain(&enum_fields)
             .map(|x| format_ident!("{}_page", x));
         quote_spanned! {proc_macro2::Span::call_site()=>
-            pub fn root(self, id: String) -> impl Element {
+            pub fn root(&self, id: String) -> impl Element {
                 Column::new()
                 .s(Width::fill())
                 .s(Padding::new().left(#current_level))
@@ -939,22 +842,50 @@ fn struct_field_derive(s: DataStruct) -> proc_macro2::TokenStream {
     };
 
     quote! {
-        #fields_output
+        use crate::as_element::{Obj, AsElement};
 
-        #add_fields_page
+        impl Obj for #s_ident {}
+        impl AsElement for #s_ident {
+            type EL = El<el::ChildFlagSet>;
 
-        #root_page
+            fn as_root_element(&self, id: impl ToString) -> Self::EL {
+                El::new().child(self.root(id.to_string()))
+            }
+        }
+
+        impl #s_ident {
+            #fields_output
+
+            #add_fields_page
+
+            #root_page
+        }
     }
 }
 
-fn enum_variants_derive(e: DataEnum) -> proc_macro2::TokenStream {
+fn enum_variants_derive(e_ident: syn::Ident, e: DataEnum) -> proc_macro2::TokenStream {
     let variants = e.variants.iter().map(|x| x.ident.clone());
 
     quote! {
-        pub fn root(self, id: String) -> impl Element {
-            match self {
-                #( Self::#variants(x) => El::new().child(x.root(id)),)*
+        use crate::as_element::{Enu, AsElement};
+
+        impl Enu for #e_ident {}
+        impl AsElement for #e_ident {
+            type EL = El<el::ChildFlagSet>;
+
+            fn as_root_element(&self, id: impl ToString) -> Self::EL {
+                El::new().child(Column::new()
+                                .item(Text::new(self.as_ref()))
+                                .item(self.root(id.to_string())))
             }
+        }
+
+        impl #e_ident {
+        pub fn root(&self, id: String) -> impl Element {
+            match self {
+                #( Self::#variants(ref x) => El::new().child(x.root(id)),)*
+            }
+        }
         }
     }
 }
@@ -964,17 +895,14 @@ pub fn field_derive(input: TokenStream) -> TokenStream {
     let DeriveInput { ident, data, .. } = parse_macro_input!(input);
 
     let contents = match data {
-        syn::Data::Struct(s) => struct_field_derive(s),
-        syn::Data::Enum(e) => enum_variants_derive(e),
+        syn::Data::Struct(s) => struct_field_derive(ident, s),
+        syn::Data::Enum(e) => enum_variants_derive(ident, e),
         _ => todo!(),
     };
 
     let output = quote! {
         use zoon::*;
-
-        impl #ident {
-           #contents
-        }
+        #contents
     };
     //eprintln!("TOKENS: {}", output);
     output.into()
@@ -982,20 +910,21 @@ pub fn field_derive(input: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn ignore_none(_args: TokenStream, tokens: TokenStream) -> TokenStream {
-	let mut input: DeriveInput = parse_macro_input!(tokens);
+    let mut input: DeriveInput = parse_macro_input!(tokens);
 
-	if let syn::Data::Struct(ref mut s) = input.data {
-		if let syn::Fields::Named(syn::FieldsNamed { ref mut named, .. }) = s.fields {
-			named.iter_mut().for_each(|f| {
-				f.attrs.push(syn::parse_quote!(#[serde(skip_serializing_if = "crate::mutable_is_none")]));
-			})
-		}
-	}
+    if let syn::Data::Struct(ref mut s) = input.data {
+        if let syn::Fields::Named(syn::FieldsNamed { ref mut named, .. }) = s.fields {
+            named.iter_mut().for_each(|f| {
+                f.attrs.push(
+                    syn::parse_quote!(#[serde(skip_serializing_if = "crate::mutable_is_none")]),
+                );
+            })
+        }
+    }
 
-	let output = quote! {
-		#input
-	};
-	//eprintln!("TOKENS: {}", output);
-	output.into()
+    let output = quote! {
+        #input
+    };
+    //eprintln!("TOKENS: {}", output);
+    output.into()
 }
-

@@ -21,3 +21,9 @@ pub enum Enum {
     single_field(single_field::Val),
     formatted(formatted::Val),
 }
+
+impl Default for Enum {
+    fn default() -> Self {
+        Self::console(Default::default())
+    }
+}

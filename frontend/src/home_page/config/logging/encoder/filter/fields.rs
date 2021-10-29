@@ -19,3 +19,9 @@ pub enum Enum {
     tls_cipher(tls_cipher::Val),
     tls_version(tls_version::Val),
 }
+
+impl Default for Enum {
+    fn default() -> Self {
+        Self::delete(Default::default())
+    }
+}

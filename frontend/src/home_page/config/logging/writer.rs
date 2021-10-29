@@ -19,3 +19,9 @@ pub enum Enum {
     file(file::Val),
     net(net::Val),
 }
+
+impl Default for Enum {
+    fn default() -> Self {
+        Self::discard(Default::default())
+    }
+}

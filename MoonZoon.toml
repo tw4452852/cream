@@ -12,6 +12,7 @@ enabled = false
 frontend = [
     "frontend/Cargo.toml",
     "frontend/src",
+    "frontend/field-derive/src",
 ]
 backend = [
     "backend/Cargo.toml",
